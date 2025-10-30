@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive School Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel Standalone for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body class="bg-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      // --- Start of Combined Application Code ---
+
+      const { useState, useMemo, useCallback, useEffect, StrictMode } = React;
+
+      // --- From constants.ts ---
+      const MONTH_NAMES = [
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni"
+      ];
+      const DAY_NAMES = ["M", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+      const DAY_NAMES_FULL = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+      const COLOR_PRESETS = {
+        red: { name: 'Red', bg: '#ef4444', text: '#ffffff' },      // bg-red-500
+        green: { name: 'Green', bg: '#4ade80', text: '#1f2937' },    // bg-green-400
+        yellow: { name: 'Yellow', bg: '#facc15', text: '#1f2937' },   // bg-yellow-400
+        blue: { name: 'Blue', bg: '#2563eb', text: '#ffffff' },     // bg-blue-600
+        orange: { name: 'Orange', bg: '#f97316', text: '#ffffff' },   // bg-orange-500
+      };
+
+      // --- From env.ts ---
+      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjrFlZ57AN6FMrHJv_mR57r_KpHPWjQR8ge5KzUC1yEqsRzzpPDkATTJRASWeAejgW/exec';
+
+      // --- From googleSheetApi.ts ---
+      if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('YOUR_APPS_SCRIPT_URL_HERE')) {
+        console.error("URL Google Apps Script belum dikonfigurasi di env.ts!");
+      }
+
+      const fetchCustomStyles = async () => {
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'GET',
+            redirect: 'follow',
+          });
+          if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+          const result = await response.json();
+          if (!result.success) throw new Error(result.error || 'Terjadi kesalahan di server Apps Script.');
+          return result.data || {};
+        } catch (error) {
+          console.error('Gagal mengambil data dari Google Apps Script:', error);
+          throw new Error(`Tidak dapat mengambil data: ${error.message}`);
+        }
+      };
+
+      const updateCustomStyles = async (styles) => {
+        const payload = Object.keys(styles).map(dateKey => {
+          const style = styles[dateKey];
+          return {
+            date: dateKey,
+            agenda: style.agenda,
+            backgroundColor: style.backgroundColor,
+            textColor: style.textColor,
+            recurrenceType: style.recurrence?.type || 'none',
+            recurrenceUntil: style.recurrence?.until || '',
+          };
+        });
+
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+          const result = await response.json();
+          if (!result.success) throw new Error(result.error || 'Gagal memperbarui data di server Apps Script.');
+          console.log('Data berhasil disimpan ke Google Sheets.');
+        } catch (error) {
+          console.error('Gagal mengirim pembaruan ke Google Apps Script:', error);
+          throw new Error(`Tidak dapat menyimpan data: ${error.message}`);
+        }
+      };
+
+      // --- From components/Header.tsx ---
+      const Header = ({ onSettingsClick, academicYearStart }) => {
+        return (
+          <header className="text-center p-4 bg-white rounded-lg shadow-md">
+            <div className="flex justify-between items-center">
+              <div className="w-10" />
+              <div className="flex-grow">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">SD IT NURUL KAUTSAR</h1>
+                <h2 className="text-lg sm:text-xl text-gray-600">{`KALENDER PENDIDIKAN TAHUN PELAJARAN ${academicYearStart}/${academicYearStart + 1}`}</h2>
+              </div>
+              <button
+                onClick={onSettingsClick}
+                className="p-2 rounded-full hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                aria-label="Pengaturan"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            </div>
+          </header>
+        );
+      };
+
+      // --- From components/MonthView.tsx ---
+      const MonthView = ({ monthDate, onDateClick, customStyles, dateToMasterKeyMap }) => {
+        const year = monthDate.getFullYear();
+        const month = monthDate.getMonth();
+        const monthNameIndex = month >= 6 ? month - 6 : month + 6;
+        const monthName = MONTH_NAMES[monthNameIndex];
+
+        const calendarDays = useMemo(() => {
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          const firstDayOfMonth = new Date(year, month, 1).getDay();
+          const totalCells = 42;
+          const daysArray = [];
+          for (let i = 0; i < firstDayOfMonth; i++) { daysArray.push(null); }
+          for (let i = 1; i <= daysInMonth; i++) { daysArray.push(i); }
+          while (daysArray.length < totalCells) { daysArray.push(null); }
+          return daysArray;
+        }, [year, month]);
+
+        const academicYearStart = month >= 6 ? year : year - 1;
+        const isGanjil = month >= 6 && year === academicYearStart;
+        const finalHeaderColor = isGanjil ? 'bg-green-600' : 'bg-blue-600';
+
+        return (
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden border-2 border-black">
+            <div className={`p-2 text-center font-bold text-white ${finalHeaderColor}`}>{`${monthName} ${year}`}</div>
+            <div className="grid grid-cols-7 text-center border-t-2 border-b-2 border-black font-semibold">
+              {DAY_NAMES.map((day, index) => (
+                <div key={day} className={`p-1 border-l border-black ${index === 0 ? 'border-l-0' : ''} ${index === 0 ? 'text-red-600' : index === 6 ? 'text-red-600' : 'text-black'}`}>
+                  {day}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {calendarDays.map((day, index) => {
+                if (!day) return <div key={`blank-${index}`} className="border-t border-l border-black h-10" />;
+
+                const currentDate = new Date(Date.UTC(year, month, day));
+                const dayOfWeek = currentDate.getUTCDay();
+                const dateKey = currentDate.toISOString().split('T')[0];
+                const masterKey = dateToMasterKeyMap[dateKey];
+                const customStyle = masterKey ? customStyles[masterKey] : undefined;
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+                let dayClasses = 'relative flex items-center justify-center p-1 border-t border-l border-black cursor-pointer hover:bg-blue-100 transition-colors text-sm h-10';
+                let style = {};
+                let showEventIndicator = false;
+
+                if (isWeekend) {
+                    dayClasses += ' text-red-600 font-bold';
+                    if (customStyle && customStyle.agenda) {
+                        showEventIndicator = true;
+                    }
+                } else {
+                    if (customStyle) {
+                        style.backgroundColor = customStyle.backgroundColor;
+                        style.color = customStyle.textColor;
+                    } else {
+                        dayClasses += ' text-black';
+                    }
+                }
+
+                return (
+                  <div key={day} className={dayClasses} style={style} onClick={() => onDateClick(currentDate)}>
+                    {day}
+                    {showEventIndicator && (
+                      <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-gray-600 rounded-full"></span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      };
+
+      // --- From components/CalendarGrid.tsx ---
+      const CalendarGrid = ({ onDateClick, customStyles, academicYearStart, dateToMasterKeyMap }) => {
+        const months = Array.from({ length: 12 }, (_, i) => {
+          const monthIndex = (i + 6) % 12;
+          const year = academicYearStart + Math.floor((i + 6) / 12);
+          return new Date(year, monthIndex, 1);
+        });
+
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {months.map(monthDate => (
+              <MonthView
+                key={monthDate.toString()}
+                monthDate={monthDate}
+                onDateClick={onDateClick}
+                customStyles={customStyles}
+                dateToMasterKeyMap={dateToMasterKeyMap}
+              />
+            ))}
+          </div>
+        );
+      };
+
+      // --- From components/EventTables.tsx ---
+      const SemesterTable = ({ data }) => (
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden border-2 border-black">
+          <div className="bg-orange-500 p-2 text-center font-bold text-white">{data.title}</div>
+          <table className="w-full">
+            <thead className="bg-orange-200">
+              <tr className="border-t-2 border-black">
+                <th className="p-2 border-b-2 border-r-2 border-black text-center font-semibold text-black">TANGGAL</th>
+                <th className="p-2 border-b-2 border-black text-center font-semibold text-black">KETERANGAN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.events.map((event, index) => (
+                <tr key={index} className="border-t border-gray-300">
+                  <td className="p-2 border-r-2 border-black whitespace-nowrap text-black text-left">{event.date}</td>
+                  <td className="p-2 text-black text-left">{event.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+
+      const EventTables = ({ ganjilData, genapData }) => {
+        return (
+          <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            <SemesterTable data={ganjilData} />
+            <SemesterTable data={genapData} />
+          </div>
+        );
+      };
+      
+      // --- From components/EventDetailsModal.tsx ---
+      const EventDetailsModal = ({ date, events, onClose, onAdd, onDelete }) => {
+        const formattedDate = `${DAY_NAMES_FULL[date.getUTCDay()]}, ${date.getUTCDate()} ${date.toLocaleString('id-ID', { month: 'long', timeZone: 'UTC' })} ${date.getUTCFullYear()}`;
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="event-details-title">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b flex justify-between items-center">
+                <div>
+                  <h3 id="event-details-title" className="text-xl font-bold text-gray-800">Kegiatan pada Tanggal Ini</h3>
+                  <p className="text-sm text-gray-500">{formattedDate}</p>
+                </div>
+                <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 transition-colors" aria-label="Tutup modal">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="p-6 max-h-[60vh] overflow-y-auto">
+                {events.length > 0 ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                    <ul className="list-disc list-inside space-y-2 text-gray-700">{events.map((event, index) => <li key={index}>{event}</li>)}</ul>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-center">
+                    <p className="text-sm text-gray-500">Tidak ada kegiatan terjadwal.</p>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
+                <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Tutup</button>
+                {onDelete && (<button onClick={onDelete} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">Hapus</button>)}
+                <button onClick={onAdd} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Tambah</button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // --- From components/SettingsPanel.tsx ---
+      const SettingsPanel = ({ selectedDate, currentStyle, onClose, onSave, onDateChange }) => {
+          const colorPresets = useMemo(() => Object.values(COLOR_PRESETS), []);
+          const DAY_NAMES_COMPACT = ["M", "S", "S", "R", "K", "J", "S"];
+          const [agenda, setAgenda] = useState('');
+          const [backgroundColor, setBackgroundColor] = useState(colorPresets[0].bg);
+          const [textColor, setTextColor] = useState(colorPresets[0].text);
+          const [recurrenceType, setRecurrenceType] = useState('none');
+          const [recurrenceUntil, setRecurrenceUntil] = useState('');
+          const [pickerDate, setPickerDate] = useState(selectedDate || new Date());
+
+          useEffect(() => {
+              if (selectedDate) {
+                  setPickerDate(new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), 1)));
+              }
+          }, [selectedDate]);
+
+          useEffect(() => {
+              if (selectedDate && currentStyle) {
+                  setAgenda(currentStyle.agenda || '');
+                  setBackgroundColor(currentStyle.backgroundColor || colorPresets[0].bg);
+                  setTextColor(currentStyle.textColor || colorPresets[0].text);
+                  setRecurrenceType(currentStyle.recurrence?.type || 'none');
+                  setRecurrenceUntil(currentStyle.recurrence?.until || '');
+              } else {
+                  setAgenda('');
+                  setBackgroundColor(colorPresets[0].bg);
+                  setTextColor(colorPresets[0].text);
+                  setRecurrenceType('none');
+                  setRecurrenceUntil('');
+              }
+          }, [selectedDate, currentStyle, colorPresets]);
+
+          const handleSave = useCallback(() => {
+              if (selectedDate) {
+                  const style = { agenda, backgroundColor, textColor };
+                  if (recurrenceType !== 'none') {
+                      style.recurrence = { type: recurrenceType, until: recurrenceUntil || undefined };
+                  }
+                  onSave(selectedDate, style);
+              }
+          }, [selectedDate, onSave, agenda, backgroundColor, textColor, recurrenceType, recurrenceUntil]);
+
+          const calendarDays = useMemo(() => {
+              const year = pickerDate.getUTCFullYear();
+              const month = pickerDate.getUTCMonth();
+              const daysInMonth = new Date(year, month + 1, 0).getDate();
+              const firstDayOfMonth = new Date(Date.UTC(year, month, 1)).getUTCDay();
+              const daysArray = [];
+              for (let i = 0; i < firstDayOfMonth; i++) { daysArray.push(null); }
+              for (let i = 1; i <= daysInMonth; i++) { daysArray.push(i); }
+              while (daysArray.length % 7 !== 0) { daysArray.push(null); }
+              return daysArray;
+          }, [pickerDate]);
+
+          const handlePrevMonth = () => setPickerDate(new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth() - 1, 1)));
+          const handleNextMonth = () => setPickerDate(new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth() + 1, 1)));
+          const formattedDate = selectedDate ? `${DAY_NAMES_FULL[selectedDate.getUTCDay()]}, ${selectedDate.getUTCDate()} ${selectedDate.toLocaleString('id-ID', { month: 'long', timeZone: 'UTC' })} ${selectedDate.getUTCFullYear()}` : 'Pilih tanggal dari kalender';
+
+          return (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                      <div className="p-6 border-b">
+                          <h3 className="text-xl font-bold text-gray-800">Pengaturan Agenda</h3>
+                          <p className="text-sm text-gray-500">Tambah atau ubah agenda kustom.</p>
+                      </div>
+                      <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                          <div>
+                              <h4 className="text-md font-semibold text-gray-800 mb-2">Agenda Kustom</h4>
+                              <label className="block text-sm font-medium text-gray-700">Tanggal</label>
+                              <div className="mt-1 bg-white border border-gray-300 rounded-md shadow-sm p-2">
+                                  <div className="flex justify-between items-center mb-2 px-2">
+                                      <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-gray-100" aria-label="Bulan sebelumnya"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
+                                      <span className="font-semibold text-sm">{pickerDate.toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</span>
+                                      <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-gray-100" aria-label="Bulan berikutnya"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                                  </div>
+                                  <div className="grid grid-cols-7 text-center text-xs text-gray-500 font-medium">
+                                      {DAY_NAMES_COMPACT.map((d, i) => <div key={i}>{d}</div>)}
+                                  </div>
+                                  <div className="grid grid-cols-7 mt-1">
+                                      {calendarDays.map((day, index) => {
+                                          if (!day) return <div key={`blank-${index}`} className="h-8 w-8"></div>;
+                                          const dayDate = new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth(), day));
+                                          const isSelected = selectedDate && dayDate.getTime() === selectedDate.getTime();
+                                          const now = new Date();
+                                          const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                                          const isToday = dayDate.getTime() === todayUTC.getTime();
+                                          return <div key={day} className="flex justify-center items-center">
+                                              <button onClick={() => onDateChange(dayDate)} className={`h-8 w-8 rounded-full text-sm flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : ''} ${!isSelected && isToday ? 'bg-blue-100 text-blue-700' : ''} ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}`}>{day}</button>
+                                          </div>
+                                      })}
+                                  </div>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">{selectedDate ? formattedDate : 'Pilih tanggal untuk menambah/mengubah agenda.'}</p>
+                          </div>
+                          {selectedDate && (
+                              <>
+                                <div>
+                                    <label htmlFor="agenda" className="block text-sm font-medium text-gray-700">Agenda</label>
+                                    <input type="text" id="agenda" value={agenda} onChange={(e) => setAgenda(e.target.value)} placeholder="e.g., Rapat Guru" className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Warna</label>
+                                    <div className="flex space-x-3 mt-2">
+                                        {colorPresets.map((preset) => <button key={preset.name} type="button" onClick={() => { setBackgroundColor(preset.bg); setTextColor(preset.text); }} className={`w-8 h-8 rounded-full border-2 transition-all ${backgroundColor === preset.bg ? 'border-blue-500 ring-2 ring-blue-500 ring-offset-1' : 'border-gray-300 hover:border-gray-400'}`} style={{ backgroundColor: preset.bg }} aria-label={`Pilih warna ${preset.name}`}></button>)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label htmlFor="recurrence" className="block text-sm font-medium text-gray-700">Ulangi</label>
+                                    <select id="recurrence" value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        <option value="none">Tidak Berulang</option>
+                                        <option value="daily">Harian (untuk rentang)</option>
+                                    </select>
+                                </div>
+                                {recurrenceType !== 'none' && (
+                                    <div>
+                                        <label htmlFor="recurrence-until" className="block text-sm font-medium text-gray-700">Ulangi Hingga</label>
+                                        <input type="date" id="recurrence-until" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                                    </div>
+                                )}
+                              </>
+                          )}
+                      </div>
+                      <div className="p-4 bg-gray-50 flex justify-end rounded-b-lg">
+                          <div className="flex gap-2">
+                              <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Tutup</button>
+                              <button onClick={handleSave} disabled={!selectedDate} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:bg-gray-400">Simpan Agenda</button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          );
+      };
+      
+      // --- From components/StartupNotificationModal.tsx ---
+      const StartupNotificationModal = ({ events, onClose }) => (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="startup-notification-title">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b flex justify-between items-center">
+              <div>
+                <h3 id="startup-notification-title" className="text-xl font-bold text-gray-800">Pengingat Acara Besok</h3>
+                <p className="text-sm text-gray-500">Acara berikut dijadwalkan untuk besok:</p>
+              </div>
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 transition-colors" aria-label="Tutup modal">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <ul className="list-disc list-inside space-y-2 text-blue-800">{events.map((event, index) => <li key={index}>{event}</li>)}</ul>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 flex justify-end rounded-b-lg">
+              <button onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Mengerti</button>
+            </div>
+          </div>
+        </div>
+      );
+
+      // --- From components/ConfirmationModal.tsx ---
+      const ConfirmationModal = ({ message, onConfirm, onCancel }) => (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onCancel} role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 text-center">
+              <h3 id="confirmation-title" className="text-lg font-semibold text-gray-800">Konfirmasi</h3>
+              <p className="mt-2 text-sm text-gray-600">{message}</p>
+            </div>
+            <div className="p-4 bg-gray-50 flex justify-center gap-4 rounded-b-lg">
+              <button onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition w-24">Batal</button>
+              <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition w-24">Iya</button>
+            </div>
+          </div>
+        </div>
+      );
+
+      // --- From components/PasswordModal.tsx ---
+      const PasswordModal = ({ title, onSubmit, onClose, error }) => {
+        const [password, setPassword] = useState('');
+        const handleSubmit = (e) => { e.preventDefault(); onSubmit(password); };
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="password-title">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+              <form onSubmit={handleSubmit}>
+                <div className="p-6">
+                  <h3 id="password-title" className="text-lg font-semibold text-gray-800">{title}</h3>
+                  <p className="mt-1 text-sm text-gray-500">Silakan masukkan password.</p>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-4 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" autoFocus />
+                  {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                </div>
+                <div className="p-4 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
+                  <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Batal</button>
+                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Lanjutkan</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      };
+
+      // --- From components/SetupModal.tsx ---
+      const SetupModal = ({ onInitialize, isInitializing }) => (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md text-center p-8">
+            <h2 id="setup-title" className="text-2xl font-bold text-gray-800">Selamat Datang!</h2>
+            <p className="mt-4 text-gray-600">Kalender sekolah Anda belum diinisialisasi. Untuk memulai, Anda dapat mengisi kalender dengan data acara sekolah standar untuk tahun ajaran ini.</p>
+            <p className="mt-2 text-sm text-gray-500">Tindakan ini akan mengirim data ke Google Sheet Anda. Anda dapat mengubah atau menambah acara nanti melalui panel pengaturan.</p>
+            <div className="mt-8">
+              <button onClick={onInitialize} disabled={isInitializing} className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
+                {isInitializing ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Menginisialisasi...
+                  </>
+                ) : ('Inisialisasi Kalender Sekolah')}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+
+      // --- From App.tsx ---
+      const App = () => {
+          const [customStyles, setCustomStyles] = useState({});
+          const [isLoading, setIsLoading] = useState(true);
+          const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+          const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+          const [selectedDate, setSelectedDate] = useState(null);
+          const [startupNotifications, setStartupNotifications] = useState([]);
+          const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
+          const [isInitializing, setIsInitializing] = useState(false);
+          const [passwordModalConfig, setPasswordModalConfig] = useState({ isOpen: false, purpose: null, error: undefined });
+          const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+          const [dateToDelete, setDateToDelete] = useState(null);
+          
+          const academicYearStart = useMemo(() => {
+              const now = new Date();
+              return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+          }, []);
+
+          useEffect(() => {
+            const loadData = async () => {
+              setIsLoading(true);
+              try {
+                const styles = await fetchCustomStyles();
+                setCustomStyles(styles);
+                if (Object.keys(styles).length === 0) {
+                    setIsSetupModalOpen(true);
+                }
+              } catch (error) {
+                console.error("Gagal memuat data dari Google Sheets:", error);
+                alert("Gagal memuat data dari Google Sheets. Pastikan konfigurasi di env.ts sudah benar dan Spreadsheet sudah dibagikan.");
+              } finally {
+                setIsLoading(false);
+              }
+            };
+            loadData();
+          }, []);
+
+          const dateToMasterKeyMap = useMemo(() => {
+              const map = {};
+              for (const masterKey of Object.keys(customStyles)) {
+                  const style = customStyles[masterKey];
+                  const masterDate = new Date(masterKey + 'T00:00:00Z');
+                  if (isNaN(masterDate.getTime())) continue;
+                  map[masterKey] = masterKey;
+          
+                  if (style.recurrence && style.recurrence.type === 'daily' && style.recurrence.until) {
+                      const recurrenceEndDate = new Date(style.recurrence.until + 'T00:00:00Z');
+                      if (isNaN(recurrenceEndDate.getTime())) continue;
+                      let currentDate = new Date(masterDate);
+                      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+                      while (currentDate <= recurrenceEndDate) {
+                          const currentDateKey = currentDate.toISOString().split('T')[0];
+                          map[currentDateKey] = masterKey;
+                          currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+                      }
+                  }
+              }
+              return map;
+          }, [customStyles]);
+
+          useEffect(() => {
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const tomorrowStr = tomorrow.toISOString().split('T')[0];
+              const masterKey = dateToMasterKeyMap[tomorrowStr];
+              if(masterKey && customStyles[masterKey]?.agenda){
+                  setStartupNotifications([customStyles[masterKey].agenda]);
+              } else {
+                  setStartupNotifications([]);
+              }
+          }, [customStyles, dateToMasterKeyMap]);
+          
+          const { ganjilData, genapData } = useMemo(() => {
+              const INDONESIAN_MONTH_MAP = { 'januari':0, 'februari':1, 'maret':2, 'april':3, 'mei':4, 'juni':5, 'juli':6, 'agustus':7, 'september':8, 'oktober':9, 'november':10, 'desember':11 };
+              const allDailyEvents = [];
+              Object.entries(dateToMasterKeyMap).forEach(([dateKey, masterKey]) => {
+                  const style = customStyles[masterKey];
+                  if (style && style.agenda) {
+                      allDailyEvents.push({ date: new Date(dateKey + 'T00:00:00Z'), description: style.agenda });
+                  }
+              });
+
+              const createSemesterTableData = (title) => {
+                  const isGanjil = title === "SEMESTER GANJIL";
+                  const semesterEvents = allDailyEvents.filter(event => {
+                      const month = event.date.getUTCMonth();
+                      const year = event.date.getUTCFullYear();
+                      return isGanjil ? (year === academicYearStart && month >= 6) : (year === academicYearStart + 1 && month < 6);
+                  });
+                  const uniqueEvents = Array.from(new Map(semesterEvents.map(e => [e.date.toISOString() + e.description, e])).values());
+                  uniqueEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+                  if (uniqueEvents.length === 0) return { title, events: [] };
+                  const groupedEvents = [];
+                  let currentGroup = { start: uniqueEvents[0].date, end: uniqueEvents[0].date, description: uniqueEvents[0].description };
+                  for (let i = 1; i < uniqueEvents.length; i++) {
+                      const prevEvent = uniqueEvents[i - 1];
+                      const currentEvent = uniqueEvents[i];
+                      const isConsecutive = (currentEvent.date.getTime() - prevEvent.date.getTime()) === (24 * 60 * 60 * 1000);
+                      if (currentEvent.description === currentGroup.description && isConsecutive) {
+                          currentGroup.end = currentEvent.date;
+                      } else {
+                          groupedEvents.push({ date: formatDateRange(currentGroup.start, currentGroup.end), description: currentGroup.description });
+                          currentGroup = { start: currentEvent.date, end: currentEvent.date, description: currentEvent.description };
+                      }
+                  }
+                  groupedEvents.push({ date: formatDateRange(currentGroup.start, currentGroup.end), description: currentGroup.description });
+                  return { title, events: groupedEvents };
+              };
+              
+              const formatDateRange = (start, end) => {
+                const fullDateFormat = { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' };
+                const dayMonthFormat = { day: 'numeric', month: 'long', timeZone: 'UTC' };
+                if (start.getTime() === end.getTime()) return start.toLocaleDateString('id-ID', fullDateFormat);
+                const startYear = start.getUTCFullYear();
+                const endYear = end.getUTCFullYear();
+                const startMonth = start.getUTCMonth();
+                const endMonth = end.getUTCMonth();
+                if (startMonth === endMonth && startYear === endYear) {
+                    const monthYearStr = start.toLocaleDateString('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+                    return `${start.getUTCDate()} - ${end.getUTCDate()} ${monthYearStr}`;
+                }
+                if (startYear === endYear) {
+                    const startStr = start.toLocaleDateString('id-ID', dayMonthFormat);
+                    const endStr = end.toLocaleDateString('id-ID', dayMonthFormat);
+                    return `${startStr} - ${endStr} ${startYear}`;
+                }
+                return `${start.toLocaleDateString('id-ID', fullDateFormat)} - ${end.toLocaleDateString('id-ID', fullDateFormat)}`;
+              };
+
+              return { ganjilData: createSemesterTableData("SEMESTER GANJIL"), genapData: createSemesterTableData("SEMESTER GENAP") };
+          }, [customStyles, dateToMasterKeyMap, academicYearStart]);
+
+          const eventsOnSelectedDate = useMemo(() => {
+              if (!selectedDate) return [];
+              const dateStr = selectedDate.toISOString().split('T')[0];
+              const masterKey = dateToMasterKeyMap[dateStr];
+              const customStyle = masterKey ? customStyles[masterKey] : undefined;
+              return customStyle && customStyle.agenda?.trim() ? [customStyle.agenda.trim()] : [];
+          }, [selectedDate, customStyles, dateToMasterKeyMap]);
+
+          const handleDateClick = useCallback((date) => { setSelectedDate(date); setIsDetailsModalOpen(true); }, []);
+          const handleOpenSettings = useCallback(() => { setPasswordModalConfig({ isOpen: true, purpose: 'settings' }); }, []);
+          const handleAddOrEditEvent = useCallback(() => { setIsDetailsModalOpen(false); handleOpenSettings(); }, [handleOpenSettings]);
+
+          const handleSaveStyle = useCallback(async (date, style) => {
+              const dateKey = date.toISOString().split('T')[0];
+              const newStyles = { ...customStyles, [dateKey]: style };
+              const masterKeyForSelectedDate = dateToMasterKeyMap[dateKey];
+              if (masterKeyForSelectedDate && masterKeyForSelectedDate !== dateKey) delete newStyles[masterKeyForSelectedDate];
+              setCustomStyles(newStyles);
+              setIsSettingsOpen(false);
+              try { await updateCustomStyles(newStyles); } catch (error) {
+                  console.error("Gagal menyimpan ke Google Sheets:", error);
+                  alert("Gagal menyimpan perubahan ke Google Sheets.");
+              }
+          }, [customStyles, dateToMasterKeyMap]);
+
+          const handleDeleteStyle = useCallback(async (date) => {
+              const dateKey = date.toISOString().split('T')[0];
+              const masterKey = dateToMasterKeyMap[dateKey];
+              if (!masterKey) return;
+              const newStyles = { ...customStyles };
+              delete newStyles[masterKey];
+              setCustomStyles(newStyles);
+              setIsDetailsModalOpen(false);
+              try { await updateCustomStyles(newStyles); } catch (error) {
+                  console.error("Gagal menyimpan ke Google Sheets:", error);
+                  alert("Gagal menyimpan perubahan ke Google Sheets.");
+              }
+          }, [customStyles, dateToMasterKeyMap]);
+
+          const handleDeleteRequest = useCallback((date) => { setDateToDelete(date); setIsDetailsModalOpen(false); setIsConfirmationOpen(true); }, []);
+          const handleConfirmDelete = useCallback(() => { setIsConfirmationOpen(false); setPasswordModalConfig({ isOpen: true, purpose: 'delete' }); }, []);
+          const handlePasswordSubmit = useCallback((password) => {
+              if (password !== 'admin') {
+                  setPasswordModalConfig(prev => ({ ...prev, error: 'Password salah' }));
+                  return;
+              }
+              if (passwordModalConfig.purpose === 'settings') setIsSettingsOpen(true);
+              else if (passwordModalConfig.purpose === 'delete' && dateToDelete) handleDeleteStyle(dateToDelete);
+              setPasswordModalConfig({ isOpen: false, purpose: null });
+              setDateToDelete(null);
+          }, [passwordModalConfig.purpose, dateToDelete, handleDeleteStyle]);
+          
+          const handleInitializeCalendar = useCallback(async () => {
+              setIsInitializing(true);
+              const INDONESIAN_MONTH_MAP = {'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'mei': 4, 'jun': 5, 'jul': 6, 'agu': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'des': 11 };
+              const parseIndonesianDate = (dateStr, defaultYear, defaultMonth) => {
+                  const parts = dateStr.trim().toLowerCase().split(' ').filter(p => p);
+                  if (parts.length === 0) return null;
+                  let day = parseInt(parts[0], 10);
+                  if (isNaN(day)) return null;
+                  let month, year;
+                  for (const part of parts) {
+                      if (Object.keys(INDONESIAN_MONTH_MAP).some(m => part.startsWith(m))) {
+                          const monthKey = Object.keys(INDONESIAN_MONTH_MAP).find(m => part.startsWith(m));
+                          month = INDONESIAN_MONTH_MAP[monthKey];
+                      }
+                      const potentialYear = parseInt(part, 10);
+                      if (!isNaN(potentialYear) && potentialYear > 2000) year = potentialYear;
+                  }
+                  month = month ?? defaultMonth;
+                  year = year ?? defaultYear;
+                  if (day === undefined || month === undefined || year === undefined) return null;
+                  return new Date(Date.UTC(year, month, day));
+              };
+              const expandDateRange = (dateStr) => {
+                  const dates = [];
+                  const parts = dateStr.split('-').map(p => p.trim());
+                  const endDate = parseIndonesianDate(parts[parts.length - 1]);
+                  if (!endDate) return [];
+                  const startDate = parts.length > 1 ? parseIndonesianDate(parts[0], endDate.getUTCFullYear(), endDate.getUTCMonth()) : endDate;
+                  if (!startDate) return [];
+                  let currentDate = new Date(startDate);
+                  while (currentDate <= endDate) {
+                      dates.push(new Date(currentDate));
+                      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+                  }
+                  return dates;
+              };
+
+              const staticGanjilData = (startYear) => ({
+                  events: [
+                    { date: `14-16 Juli ${startYear}`, description: `Awal PBM TP ${startYear}-${startYear + 1}/MPLS Peserta Didik Baru` },
+                    { date: `17 Juli ${startYear}`, description: `Efektif Belajar TP ${startYear}-${startYear + 1}` },
+                    { date: `17 - 18 Agustus ${startYear}`, description: "Proklamasi Kemerdekaan RI dan Cuti Bersama" },
+                    { date: `05 September ${startYear}`, description: "Maulid" },
+                    { date: `18 - 26 September ${startYear}`, description: "Sumatif Tengah Semester I (STS 1)" },
+                    { date: `02 - 15 Oktober ${startYear}`, description: "Libur Tengah Semester" },
+                    { date: `04 - 12 Desember ${startYear}`, description: "Sumatif Akhir Semester I (SAS 1)" },
+                    { date: `15 - 19 Desember ${startYear}`, description: "Pekan Olahraga dan Seni (PORSENI)" },
+                    { date: `25 Desember ${startYear}`, description: "Natal" },
+                    { date: `27 Desember ${startYear}`, description: "Pembagian Rapor SAS 1" },
+                    { date: `29 Des ${startYear} - 02 Jan ${startYear + 1}`, description: "Libur Semester Ganjil" },
+                  ]
+              });
+              const staticGenapData = (startYear) => ({
+                  events: [
+                    { date: `5 Januari ${startYear + 1}`, description: "Belajar Efektif Semester Genap" },
+                    { date: `16 Januari ${startYear + 1}`, description: "Isra Mi'raj" },
+                    { date: `17 Februari ${startYear + 1}`, description: "Imlek" },
+                    { date: `19 - 20 Februari ${startYear + 1}`, description: "Perkiraan Libur Awal Ramadhan" },
+                    { date: `26 Feb - 06 Mar ${startYear + 1}`, description: "Sumatif Tengah Semester II (STS 2)" },
+                    { date: `09 - 10 Mar ${startYear + 1}`, description: "Perkiraan Buka Puasa Bersama" },
+                    { date: `19 Maret ${startYear + 1}`, description: "Nyepi" },
+                    { date: `20 Maret ${startYear + 1}`, description: "Perkiraan Idulfitri" },
+                    { date: `23 - 27 Maret ${startYear + 1}`, description: "Libur dan Cuti Bersama Idul Fitri 1447 H" },
+                    { date: `30 Maret ${startYear + 1}`, description: "Masuk Sekolah" },
+                    { date: `03 April ${startYear + 1}`, description: "Wafat Yesus Kristus" },
+                    { date: `01 Mei ${startYear + 1}`, description: "Hari Buruh" },
+                    { date: `04 - 12 Mei ${startYear + 1}`, description: "Ujian Akhir Sekolah Kelas 6 SD" },
+                    { date: `14 Mei ${startYear + 1}`, description: "Kenaikan Yesus Kristus" },
+                    { date: `27 Mei ${startYear + 1}`, description: "Perkiraan Hari Raya Idul Adha" },
+                    { date: `01 Juni ${startYear + 1}`, description: "Hari Lahir Pancasila" },
+                    { date: `04 - 12 Juni ${startYear + 1}`, description: "Sumatif Akhir Semester II (SAS 2)" },
+                    { date: `20 Juni ${startYear + 1}`, description: "Pembagian Raport kenaikan Kelas" },
+                    { date: `22 Juni - 10 Juli ${startYear + 1}`, description: "Libur Semester Genap" },
+                  ]
+              });
+              const getColorForDescription = (desc) => {
+                  const d = desc.toLowerCase();
+                  if (['libur', 'cuti', 'hari raya', 'natal', 'imlek', 'nyepi', 'idul fitri', 'idul adha', 'wafat', 'pancasila', 'proklamasi', 'maulid', "isra mi'raj"].some(k => d.includes(k))) return COLOR_PRESETS.red;
+                  if (['porseni', 'tengah semester'].some(k => d.includes(k))) return COLOR_PRESETS.yellow;
+                  return COLOR_PRESETS.green;
+              };
+              const newStyles = {};
+              const allStaticEvents = [...staticGanjilData(academicYearStart).events, ...staticGenapData(academicYearStart).events];
+              for (const event of allStaticEvents) {
+                  const dates = expandDateRange(event.date);
+                  if (dates.length > 0) {
+                      const startDate = dates[0];
+                      const endDate = dates[dates.length - 1];
+                      const dateKey = startDate.toISOString().split('T')[0];
+                      const color = getColorForDescription(event.description);
+                      const style = { agenda: event.description, backgroundColor: color.bg, textColor: color.text };
+                      if (startDate.getTime() !== endDate.getTime()) {
+                          style.recurrence = { type: 'daily', until: endDate.toISOString().split('T')[0] };
+                      }
+                      newStyles[dateKey] = style;
+                  }
+              }
+              try {
+                  await updateCustomStyles(newStyles);
+                  setCustomStyles(newStyles);
+                  setIsSetupModalOpen(false);
+              } catch (error) {
+                  console.error("Gagal menginisialisasi kalender:", error);
+                  alert("Gagal menginisialisasi kalender. Silakan coba lagi.");
+              } finally {
+                  setIsInitializing(false);
+              }
+          }, [academicYearStart]);
+
+          const selectedDateKey = selectedDate?.toISOString().split('T')[0];
+          const masterKeyForSelectedDate = selectedDateKey ? dateToMasterKeyMap[selectedDateKey] : undefined;
+          const currentStyleForPanel = masterKeyForSelectedDate ? customStyles[masterKeyForSelectedDate] : undefined;
+          const canonicalDateForPanel = masterKeyForSelectedDate ? new Date(masterKeyForSelectedDate + 'T00:00:00Z') : selectedDate;
+
+          if (isLoading) {
+            return <div className="flex items-center justify-center min-h-screen"><div className="text-xl font-semibold text-gray-700">Memuat data kalender...</div></div>;
+          }
+
+          return (
+              <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+                  <div className="max-w-7xl mx-auto">
+                      <Header onSettingsClick={handleOpenSettings} academicYearStart={academicYearStart} />
+                      <main className="mt-6">
+                          <CalendarGrid onDateClick={handleDateClick} customStyles={customStyles} academicYearStart={academicYearStart} dateToMasterKeyMap={dateToMasterKeyMap} />
+                          <EventTables ganjilData={ganjilData} genapData={genapData} />
+                      </main>
+                  </div>
+                  {isSetupModalOpen && <SetupModal onInitialize={handleInitializeCalendar} isInitializing={isInitializing} />}
+                  {startupNotifications.length > 0 && <StartupNotificationModal events={startupNotifications} onClose={() => setStartupNotifications([])} />}
+                  {isDetailsModalOpen && selectedDate && <EventDetailsModal date={selectedDate} events={eventsOnSelectedDate} onClose={() => setIsDetailsModalOpen(false)} onAdd={handleAddOrEditEvent} onDelete={currentStyleForPanel ? () => handleDeleteRequest(selectedDate) : undefined} />}
+                  {isSettingsOpen && <SettingsPanel selectedDate={canonicalDateForPanel} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveStyle} currentStyle={currentStyleForPanel} onDateChange={setSelectedDate} />}
+                  {isConfirmationOpen && <ConfirmationModal message="Apakah Anda yakin ingin menghapus agenda ini?" onConfirm={handleConfirmDelete} onCancel={() => setIsConfirmationOpen(false)} />}
+                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : 'Konfirmasi Hapus'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null })} error={passwordModalConfig.error} />}
+              </div>
+          );
+      };
+
+      // --- From index.tsx (Entry Point) ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <StrictMode>
+          <App />
+        </StrictMode>
+      );
+
+      // --- End of Combined Application Code ---
+    </script>
+  </body>
+</html>
