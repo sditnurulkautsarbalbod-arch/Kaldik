@@ -35,7 +35,7 @@
       };
 
       // --- From env.ts ---
-      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwhpdA5huiv0Q2eyKiFDclgCzX5z9PXoxI9hn89aW_81k4vL4744TLZWmt5esd4XOre/exec';
+      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjrFlZ57AN6FMrHJv_mR57r_KpHPWjQR8ge5KzUC1yEqsRzzpPDkATTJRASWeAejgW/exec';
 
       // --- From googleSheetApi.ts ---
       if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('YOUR_APPS_SCRIPT_URL_HERE')) {
@@ -72,11 +72,11 @@
           
           return {
             start_date: startDate,
-            end_date: endDate,
             description: style.agenda || '',
             color_category: findColorCategory(style.backgroundColor),
             background_color: style.backgroundColor,
             text_color: style.textColor,
+            end_date: endDate,
           };
         });
 
@@ -290,7 +290,7 @@
       };
 
       // --- From components/SettingsPanel.tsx ---
-      const SettingsPanel = ({ selectedDate, currentStyle, onClose, onSave, onDateChange }) => {
+      const SettingsPanel = ({ selectedDate, currentStyle, onClose, onSave, onDateChange, onResetCalendar }) => {
           const colorPresets = useMemo(() => Object.values(COLOR_PRESETS), []);
           const DAY_NAMES_COMPACT = ["M", "S", "S", "R", "K", "J", "S"];
           const [agenda, setAgenda] = useState('');
@@ -299,6 +299,7 @@
           const [recurrenceType, setRecurrenceType] = useState('none');
           const [recurrenceUntil, setRecurrenceUntil] = useState('');
           const [pickerDate, setPickerDate] = useState(selectedDate || new Date());
+          const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
 
           useEffect(() => {
               if (selectedDate) {
@@ -332,6 +333,11 @@
               }
           }, [selectedDate, onSave, agenda, backgroundColor, textColor, recurrenceType, recurrenceUntil]);
 
+          const handleResetConfirm = () => {
+              onResetCalendar();
+              setIsResetConfirmationOpen(false);
+          };
+
           const calendarDays = useMemo(() => {
               const year = pickerDate.getUTCFullYear();
               const month = pickerDate.getUTCMonth();
@@ -349,77 +355,96 @@
           const formattedDate = selectedDate ? `${DAY_NAMES_FULL[selectedDate.getUTCDay()]}, ${selectedDate.getUTCDate()} ${selectedDate.toLocaleString('id-ID', { month: 'long', timeZone: 'UTC' })} ${selectedDate.getUTCFullYear()}` : 'Pilih tanggal dari kalender';
 
           return (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                  <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-                      <div className="p-6 border-b">
-                          <h3 className="text-xl font-bold text-gray-800">Pengaturan Agenda</h3>
-                          <p className="text-sm text-gray-500">Tambah atau ubah agenda kustom.</p>
-                      </div>
-                      <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                          <div>
-                              <h4 className="text-md font-semibold text-gray-800 mb-2">Agenda Kustom</h4>
-                              <label className="block text-sm font-medium text-gray-700">Tanggal</label>
-                              <div className="mt-1 bg-white border border-gray-300 rounded-md shadow-sm p-2">
-                                  <div className="flex justify-between items-center mb-2 px-2">
-                                      <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-gray-100" aria-label="Bulan sebelumnya"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
-                                      <span className="font-semibold text-sm">{pickerDate.toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</span>
-                                      <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-gray-100" aria-label="Bulan berikutnya"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
-                                  </div>
-                                  <div className="grid grid-cols-7 text-center text-xs text-gray-500 font-medium">
-                                      {DAY_NAMES_COMPACT.map((d, i) => <div key={i}>{d}</div>)}
-                                  </div>
-                                  <div className="grid grid-cols-7 mt-1">
-                                      {calendarDays.map((day, index) => {
-                                          if (!day) return <div key={`blank-${index}`} className="h-8 w-8"></div>;
-                                          const dayDate = new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth(), day));
-                                          const isSelected = selectedDate && dayDate.getTime() === selectedDate.getTime();
-                                          const now = new Date();
-                                          const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-                                          const isToday = dayDate.getTime() === todayUTC.getTime();
-                                          return <div key={day} className="flex justify-center items-center">
-                                              <button onClick={() => onDateChange(dayDate)} className={`h-8 w-8 rounded-full text-sm flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : ''} ${!isSelected && isToday ? 'bg-blue-100 text-blue-700' : ''} ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}`}>{day}</button>
-                                          </div>
-                                      })}
-                                  </div>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-1">{selectedDate ? formattedDate : 'Pilih tanggal untuk menambah/mengubah agenda.'}</p>
-                          </div>
-                          {selectedDate && (
-                              <>
-                                <div>
-                                    <label htmlFor="agenda" className="block text-sm font-medium text-gray-700">Agenda</label>
-                                    <input type="text" id="agenda" value={agenda} onChange={(e) => setAgenda(e.target.value)} placeholder="e.g., Rapat Guru" className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Warna</label>
-                                    <div className="flex space-x-3 mt-2">
-                                        {colorPresets.map((preset) => <button key={preset.name} type="button" onClick={() => { setBackgroundColor(preset.bg); setTextColor(preset.text); }} className={`w-8 h-8 rounded-full border-2 transition-all ${backgroundColor === preset.bg ? 'border-blue-500 ring-2 ring-blue-500 ring-offset-1' : 'border-gray-300 hover:border-gray-400'}`} style={{ backgroundColor: preset.bg }} aria-label={`Pilih warna ${preset.name}`}></button>)}
+              <>
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                        <div className="p-6 border-b">
+                            <h3 className="text-xl font-bold text-gray-800">Pengaturan Agenda</h3>
+                            <p className="text-sm text-gray-500">Tambah atau ubah agenda kustom.</p>
+                        </div>
+                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            <div>
+                                <h4 className="text-md font-semibold text-gray-800 mb-2">Agenda Kustom</h4>
+                                <label className="block text-sm font-medium text-gray-700">Tanggal</label>
+                                <div className="mt-1 bg-white border border-gray-300 rounded-md shadow-sm p-2">
+                                    <div className="flex justify-between items-center mb-2 px-2">
+                                        <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-gray-100" aria-label="Bulan sebelumnya"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
+                                        <span className="font-semibold text-sm">{pickerDate.toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</span>
+                                        <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-gray-100" aria-label="Bulan berikutnya"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                                    </div>
+                                    <div className="grid grid-cols-7 text-center text-xs text-gray-500 font-medium">
+                                        {DAY_NAMES_COMPACT.map((d, i) => <div key={i}>{d}</div>)}
+                                    </div>
+                                    <div className="grid grid-cols-7 mt-1">
+                                        {calendarDays.map((day, index) => {
+                                            if (!day) return <div key={`blank-${index}`} className="h-8 w-8"></div>;
+                                            const dayDate = new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth(), day));
+                                            const isSelected = selectedDate && dayDate.getTime() === selectedDate.getTime();
+                                            const now = new Date();
+                                            const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                                            const isToday = dayDate.getTime() === todayUTC.getTime();
+                                            return <div key={day} className="flex justify-center items-center">
+                                                <button onClick={() => onDateChange(dayDate)} className={`h-8 w-8 rounded-full text-sm flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : ''} ${!isSelected && isToday ? 'bg-blue-100 text-blue-700' : ''} ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}`}>{day}</button>
+                                            </div>
+                                        })}
                                     </div>
                                 </div>
-                                <div>
-                                    <label htmlFor="recurrence" className="block text-sm font-medium text-gray-700">Ulangi</label>
-                                    <select id="recurrence" value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                        <option value="none">Tidak Berulang</option>
-                                        <option value="daily">Harian (untuk rentang)</option>
-                                    </select>
-                                </div>
-                                {recurrenceType !== 'none' && (
-                                    <div>
-                                        <label htmlFor="recurrence-until" className="block text-sm font-medium text-gray-700">Ulangi Hingga</label>
-                                        <input type="date" id="recurrence-until" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-                                    </div>
-                                )}
-                              </>
-                          )}
-                      </div>
-                      <div className="p-4 bg-gray-50 flex justify-end rounded-b-lg">
-                          <div className="flex gap-2">
-                              <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Tutup</button>
-                              <button onClick={handleSave} disabled={!selectedDate} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:bg-gray-400">Simpan Agenda</button>
-                          </div>
-                      </div>
-                  </div>
-              </div>
+                                <p className="text-xs text-gray-500 mt-1">{selectedDate ? formattedDate : 'Pilih tanggal untuk menambah/mengubah agenda.'}</p>
+                            </div>
+                            {selectedDate && (
+                                <>
+                                  <div>
+                                      <label htmlFor="agenda" className="block text-sm font-medium text-gray-700">Agenda</label>
+                                      <input type="text" id="agenda" value={agenda} onChange={(e) => setAgenda(e.target.value)} placeholder="e.g., Rapat Guru" className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-medium text-gray-700">Warna</label>
+                                      <div className="flex space-x-3 mt-2">
+                                          {colorPresets.map((preset) => <button key={preset.name} type="button" onClick={() => { setBackgroundColor(preset.bg); setTextColor(preset.text); }} className={`w-8 h-8 rounded-full border-2 transition-all ${backgroundColor === preset.bg ? 'border-blue-500 ring-2 ring-blue-500 ring-offset-1' : 'border-gray-300 hover:border-gray-400'}`} style={{ backgroundColor: preset.bg }} aria-label={`Pilih warna ${preset.name}`}></button>)}
+                                      </div>
+                                  </div>
+                                  <div>
+                                      <label htmlFor="recurrence" className="block text-sm font-medium text-gray-700">Ulangi</label>
+                                      <select id="recurrence" value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                          <option value="none">Tidak Berulang</option>
+                                          <option value="daily">Harian (untuk rentang)</option>
+                                      </select>
+                                  </div>
+                                  {recurrenceType !== 'none' && (
+                                      <div>
+                                          <label htmlFor="recurrence-until" className="block text-sm font-medium text-gray-700">Ulangi Hingga</label>
+                                          <input type="date" id="recurrence-until" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                                      </div>
+                                  )}
+                                </>
+                            )}
+                            <div className="border-t pt-4">
+                                <h4 className="text-md font-semibold text-gray-800">Tindakan Lanjutan</h4>
+                                <p className="text-xs text-gray-500 mt-1 mb-2">Gunakan ini untuk memperbaiki data yang salah di Google Sheet.</p>
+                                <button
+                                    onClick={() => setIsResetConfirmationOpen(true)}
+                                    className="w-full text-sm px-4 py-2 bg-yellow-500 text-black rounded-md hover:bg-yellow-600 transition"
+                                >
+                                    Reset Kalender ke Standar
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 flex justify-end rounded-b-lg">
+                            <div className="flex gap-2">
+                                <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Tutup</button>
+                                <button onClick={handleSave} disabled={!selectedDate} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:bg-gray-400">Simpan Agenda</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {isResetConfirmationOpen && (
+                  <ConfirmationModal 
+                    message="Apakah Anda yakin ingin mereset seluruh kalender? Semua agenda kustom akan dihapus dan diganti dengan data standar."
+                    onConfirm={handleResetConfirm}
+                    onCancel={() => setIsResetConfirmationOpen(false)}
+                  />
+                )}
+              </>
           );
       };
       
@@ -705,19 +730,31 @@
 
           const handleDeleteRequest = useCallback((date) => { setDateToDelete(date); setIsDetailsModalOpen(false); setIsConfirmationOpen(true); }, []);
           const handleConfirmDelete = useCallback(() => { setIsConfirmationOpen(false); setPasswordModalConfig({ isOpen: true, purpose: 'delete' }); }, []);
+
           const handlePasswordSubmit = useCallback((password) => {
               if (password !== 'admin') {
                   setPasswordModalConfig(prev => ({ ...prev, error: 'Password salah' }));
                   return;
               }
-              if (passwordModalConfig.purpose === 'settings') setIsSettingsOpen(true);
-              else if (passwordModalConfig.purpose === 'delete' && dateToDelete) handleDeleteStyle(dateToDelete);
-              setPasswordModalConfig({ isOpen: false, purpose: null });
+              const purpose = passwordModalConfig.purpose;
+              setPasswordModalConfig({ isOpen: false, purpose: null }); // Tutup modal dulu
+              if (purpose === 'settings') setIsSettingsOpen(true);
+              else if (purpose === 'delete' && dateToDelete) handleDeleteStyle(dateToDelete);
+              else if (purpose === 'reset') {
+                handleInitializeCalendar(true); // Kirim flag untuk reset
+              }
               setDateToDelete(null);
           }, [passwordModalConfig.purpose, dateToDelete, handleDeleteStyle]);
+
+          const handleResetCalendarRequest = useCallback(() => {
+              setPasswordModalConfig({ isOpen: true, purpose: 'reset' });
+          }, []);
           
-          const handleInitializeCalendar = useCallback(async () => {
-              setIsInitializing(true);
+          const handleInitializeCalendar = useCallback(async (isReset = false) => {
+              if (!isReset) {
+                setIsInitializing(true);
+              }
+              
               const INDONESIAN_MONTH_MAP = {'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'mei': 4, 'jun': 5, 'jul': 6, 'agu': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'des': 11 };
               const parseIndonesianDate = (dateStr, defaultYear, defaultMonth) => {
                   const parts = dateStr.trim().toLowerCase().split(' ').filter(p => p);
@@ -816,12 +853,15 @@
               try {
                   await updateCustomStyles(newStyles);
                   setCustomStyles(newStyles);
+                  if (isReset) setIsSettingsOpen(false);
                   setIsSetupModalOpen(false);
               } catch (error) {
                   console.error("Gagal menginisialisasi kalender:", error);
                   alert("Gagal menginisialisasi kalender. Silakan coba lagi.");
               } finally {
-                  setIsInitializing(false);
+                  if (!isReset) {
+                    setIsInitializing(false);
+                  }
               }
           }, [academicYearStart]);
 
@@ -846,9 +886,9 @@
                   {isSetupModalOpen && <SetupModal onInitialize={handleInitializeCalendar} isInitializing={isInitializing} />}
                   {startupNotifications.length > 0 && <StartupNotificationModal events={startupNotifications} onClose={() => setStartupNotifications([])} />}
                   {isDetailsModalOpen && selectedDate && <EventDetailsModal date={selectedDate} events={eventsOnSelectedDate} onClose={() => setIsDetailsModalOpen(false)} onAdd={handleAddOrEditEvent} onDelete={currentStyleForPanel ? () => handleDeleteRequest(selectedDate) : undefined} />}
-                  {isSettingsOpen && <SettingsPanel selectedDate={canonicalDateForPanel} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveStyle} currentStyle={currentStyleForPanel} onDateChange={setSelectedDate} />}
+                  {isSettingsOpen && <SettingsPanel selectedDate={canonicalDateForPanel} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveStyle} currentStyle={currentStyleForPanel} onDateChange={setSelectedDate} onResetCalendar={handleResetCalendarRequest} />}
                   {isConfirmationOpen && <ConfirmationModal message="Apakah Anda yakin ingin menghapus agenda ini?" onConfirm={handleConfirmDelete} onCancel={() => setIsConfirmationOpen(false)} />}
-                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : 'Konfirmasi Hapus'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null })} error={passwordModalConfig.error} />}
+                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : passwordModalConfig.purpose === 'delete' ? 'Konfirmasi Hapus' : 'Konfirmasi Reset'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null })} error={passwordModalConfig.error} />}
               </div>
           );
       };
