@@ -51,7 +51,7 @@
           if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
           const result = await response.json();
           if (!result.success) throw new Error(result.error || 'Terjadi kesalahan di server Apps Script.');
-          return result.data || {};
+          return result.data || []; // Expect an array from the new script
         } catch (error) {
           console.error('Gagal mengambil data dari Google Apps Script:', error);
           throw new Error(`Tidak dapat mengambil data: ${error.message}`);
@@ -59,21 +59,33 @@
       };
 
       const updateCustomStyles = async (styles) => {
+        const findColorCategory = (bgColor) => {
+          return Object.values(COLOR_PRESETS).find(p => p.bg === bgColor)?.name || '';
+        };
+
         const payload = Object.keys(styles).map(dateKey => {
           const style = styles[dateKey];
+          const startDate = dateKey;
+          const endDate = style.recurrence?.type === 'daily' && style.recurrence.until 
+                          ? style.recurrence.until 
+                          : startDate;
+          
           return {
-            date: dateKey,
-            agenda: style.agenda,
-            backgroundColor: style.backgroundColor,
-            textColor: style.textColor,
-            recurrenceType: style.recurrence?.type || 'none',
-            recurrenceUntil: style.recurrence?.until || '',
+            start_date: startDate,
+            end_date: endDate,
+            description: style.agenda || '',
+            color_category: findColorCategory(style.backgroundColor),
+            background_color: style.backgroundColor,
+            text_color: style.textColor,
           };
         });
 
         try {
           const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
+             headers: {
+              'Content-Type': 'text/plain;charset=utf-8',
+            },
             body: JSON.stringify(payload),
           });
           if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
@@ -520,9 +532,31 @@
             const loadData = async () => {
               setIsLoading(true);
               try {
-                const styles = await fetchCustomStyles();
-                setCustomStyles(styles);
-                if (Object.keys(styles).length === 0) {
+                const eventsArray = await fetchCustomStyles();
+                const stylesObject = {};
+                if (Array.isArray(eventsArray)) {
+                    eventsArray.forEach(event => {
+                        if (!event.start_date || typeof event.start_date !== 'string') return;
+                        const dateKey = event.start_date.split('T')[0];
+                        const style = {
+                            agenda: event.description || '',
+                            backgroundColor: event.background_color || '',
+                            textColor: event.text_color || '',
+                        };
+                        if (event.end_date && typeof event.end_date === 'string') {
+                            const endDateKey = event.end_date.split('T')[0];
+                            if (dateKey !== endDateKey) {
+                                style.recurrence = {
+                                    type: 'daily',
+                                    until: endDateKey,
+                                };
+                            }
+                        }
+                        stylesObject[dateKey] = style;
+                    });
+                }
+                setCustomStyles(stylesObject);
+                if (Object.keys(stylesObject).length === 0 && Array.isArray(eventsArray)) {
                     setIsSetupModalOpen(true);
                 }
               } catch (error) {
