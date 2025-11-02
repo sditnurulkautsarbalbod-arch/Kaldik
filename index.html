@@ -10,7 +10,16 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <!-- Babel Standalone for JSX compilation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+  }
+}
+</script>
+</head>
   <body class="bg-gray-100">
     <div id="root"></div>
 
@@ -20,6 +29,7 @@
       const { useState, useMemo, useCallback, useEffect, StrictMode } = React;
 
       // --- From constants.ts ---
+      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOs_J3v-IfzB8QEM21dcxfsBL3VQA1r-g4nBwvcpVSRtsphnOGRcF4uSwMxK_1PveUyw/exec';
       const MONTH_NAMES = [
         "Juli", "Agustus", "September", "Oktober", "November", "Desember",
         "Januari", "Februari", "Maret", "April", "Mei", "Juni"
@@ -34,15 +44,12 @@
         orange: { name: 'Orange', bg: '#f97316', text: '#ffffff' },   // bg-orange-500
       };
 
-      // --- From env.ts ---
-      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOs_J3v-IfzB8QEM21dcxfsBL3VQA1r-g4nBwvcpVSRtsphnOGRcF4uSwMxK_1PveUyw/exec';
-
-      // --- From googleSheetApi.ts ---
+      // --- From services/googleSheetService.ts ---
       if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('YOUR_APPS_SCRIPT_URL_HERE')) {
-        console.error("URL Google Apps Script belum dikonfigurasi di env.ts!");
+        console.error("URL Google Apps Script belum dikonfigurasi!");
       }
 
-      const fetchCustomStyles = async () => {
+      const fetchEventsFromSheet = async () => {
         try {
           const response = await fetch(APPS_SCRIPT_URL, {
             method: 'GET',
@@ -51,31 +58,35 @@
           if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
           const result = await response.json();
           if (!result.success) throw new Error(result.error || 'Terjadi kesalahan di server Apps Script.');
-          return result.data || []; // Expect an array from the new script
+          return result.data || [];
         } catch (error) {
-          console.error('Gagal mengambil data dari Google Apps Script:', error);
-          throw new Error(`Tidak dapat mengambil data: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+          console.error('Gagal mengambil data dari Google Apps Script:', errorMessage);
+          throw new Error(`Tidak dapat mengambil data: ${errorMessage}`);
         }
       };
 
-      const updateCustomStyles = async (styles) => {
-        const findColorCategory = (bgColor) => {
-          return Object.values(COLOR_PRESETS).find(p => p.bg === bgColor)?.name || '';
+      const updateEventsOnSheet = async (styles) => {
+        const findColorName = (bgColor = '') => {
+          return Object.values(COLOR_PRESETS).find(p => p.bg === bgColor)?.name.toLowerCase() || '';
         };
 
         const payload = Object.keys(styles).map(dateKey => {
           const style = styles[dateKey];
-          const startDate = dateKey;
-          const endDate = style.recurrence?.type === 'daily' && style.recurrence.until 
-                          ? style.recurrence.until 
-                          : startDate;
           
+          // BUG FIX: Add noon UTC time to date strings to avoid timezone shifts near midnight
+          // when Google Sheets processes the date. This prevents the off-by-one-day error on reload.
+          const startDate = dateKey + "T12:00:00.000Z";
+          const endDate = style.recurrence?.type === 'daily' && style.recurrence.until
+            ? style.recurrence.until + "T12:00:00.000Z"
+            : startDate;
+
           return {
             start_date: startDate,
             description: style.agenda || '',
-            color_category: findColorCategory(style.backgroundColor),
-            background_color: style.backgroundColor,
-            text_color: style.textColor,
+            color_category: findColorName(style.backgroundColor),
+            background_color: style.backgroundColor || '',
+            text_color: style.textColor || '',
             end_date: endDate,
           };
         });
@@ -83,7 +94,7 @@
         try {
           const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-             headers: {
+            headers: {
               'Content-Type': 'text/plain;charset=utf-8',
             },
             body: JSON.stringify(payload),
@@ -93,8 +104,9 @@
           if (!result.success) throw new Error(result.error || 'Gagal memperbarui data di server Apps Script.');
           console.log('Data berhasil disimpan ke Google Sheets.');
         } catch (error) {
-          console.error('Gagal mengirim pembaruan ke Google Apps Script:', error);
-          throw new Error(`Tidak dapat menyimpan data: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+          console.error('Gagal mengirim pembaruan ke Google Apps Script:', errorMessage);
+          throw new Error(`Tidak dapat menyimpan data: ${errorMessage}`);
         }
       };
 
@@ -124,7 +136,7 @@
           </header>
         );
       };
-
+      
       // --- From components/MonthView.tsx ---
       const MonthView = ({ monthDate, onDateClick, customStyles, dateToMasterKeyMap }) => {
         const year = monthDate.getFullYear();
@@ -297,6 +309,22 @@
         );
       };
 
+      // --- From components/ConfirmationModal.tsx ---
+      const ConfirmationModal = ({ message, onConfirm, onCancel }) => (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={onCancel} role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 text-center">
+              <h3 id="confirmation-title" className="text-lg font-semibold text-gray-800">Konfirmasi</h3>
+              <p className="mt-2 text-sm text-gray-600">{message}</p>
+            </div>
+            <div className="p-4 bg-gray-50 flex justify-center gap-4 rounded-b-lg">
+              <button onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition w-24">Batal</button>
+              <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition w-24">Iya</button>
+            </div>
+          </div>
+        </div>
+      );
+
       // --- From components/SettingsPanel.tsx ---
       const SettingsPanel = ({ selectedDate, currentStyle, onClose, onSave, onDateChange, onResetCalendar }) => {
           const colorPresets = useMemo(() => Object.values(COLOR_PRESETS), []);
@@ -349,7 +377,7 @@
           const calendarDays = useMemo(() => {
               const year = pickerDate.getUTCFullYear();
               const month = pickerDate.getUTCMonth();
-              const daysInMonth = new Date(year, month + 1, 0).getDate();
+              const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
               const firstDayOfMonth = new Date(Date.UTC(year, month, 1)).getUTCDay();
               const daysArray = [];
               for (let i = 0; i < firstDayOfMonth; i++) { daysArray.push(null); }
@@ -389,7 +417,7 @@
                                             const dayDate = new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth(), day));
                                             const isSelected = selectedDate && dayDate.getTime() === selectedDate.getTime();
                                             const now = new Date();
-                                            const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                                            const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
                                             const isToday = dayDate.getTime() === todayUTC.getTime();
                                             return <div key={day} className="flex justify-center items-center">
                                                 <button onClick={() => onDateChange(dayDate)} className={`h-8 w-8 rounded-full text-sm flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : ''} ${!isSelected && isToday ? 'bg-blue-100 text-blue-700' : ''} ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}`}>{day}</button>
@@ -481,28 +509,12 @@
         </div>
       );
 
-      // --- From components/ConfirmationModal.tsx ---
-      const ConfirmationModal = ({ message, onConfirm, onCancel }) => (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onCancel} role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 text-center">
-              <h3 id="confirmation-title" className="text-lg font-semibold text-gray-800">Konfirmasi</h3>
-              <p className="mt-2 text-sm text-gray-600">{message}</p>
-            </div>
-            <div className="p-4 bg-gray-50 flex justify-center gap-4 rounded-b-lg">
-              <button onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition w-24">Batal</button>
-              <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition w-24">Iya</button>
-            </div>
-          </div>
-        </div>
-      );
-
       // --- From components/PasswordModal.tsx ---
       const PasswordModal = ({ title, onSubmit, onClose, error }) => {
         const [password, setPassword] = useState('');
         const handleSubmit = (e) => { e.preventDefault(); onSubmit(password); };
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="password-title">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="password-title">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
               <form onSubmit={handleSubmit}>
                 <div className="p-6">
@@ -543,7 +555,7 @@
             const loadData = async () => {
               setIsLoading(true);
               try {
-                const eventsArray = await fetchCustomStyles();
+                const eventsArray = await fetchEventsFromSheet();
                 const stylesObject = {};
                 if (Array.isArray(eventsArray)) {
                     eventsArray.forEach(event => {
@@ -557,10 +569,7 @@
                         if (event.end_date && typeof event.end_date === 'string') {
                             const endDateKey = event.end_date.split('T')[0];
                             if (dateKey !== endDateKey) {
-                                style.recurrence = {
-                                    type: 'daily',
-                                    until: endDateKey,
-                                };
+                                style.recurrence = { type: 'daily', until: endDateKey };
                             }
                         }
                         stylesObject[dateKey] = style;
@@ -569,7 +578,7 @@
                 setCustomStyles(stylesObject);
               } catch (error) {
                 console.error("Gagal memuat data dari Google Sheets:", error);
-                alert("Gagal memuat data dari Google Sheets. Pastikan konfigurasi di env.ts sudah benar dan Spreadsheet sudah dibagikan.");
+                alert("Gagal memuat data dari Google Sheets. Pastikan konfigurasi sudah benar.");
               } finally {
                 setIsLoading(false);
               }
@@ -613,7 +622,6 @@
           }, [customStyles, dateToMasterKeyMap]);
           
           const { ganjilData, genapData } = useMemo(() => {
-              const INDONESIAN_MONTH_MAP = { 'januari':0, 'februari':1, 'maret':2, 'april':3, 'mei':4, 'juni':5, 'juli':6, 'agustus':7, 'september':8, 'oktober':9, 'november':10, 'desember':11 };
               const allDailyEvents = [];
               Object.entries(dateToMasterKeyMap).forEach(([dateKey, masterKey]) => {
                   const style = customStyles[masterKey];
@@ -621,33 +629,6 @@
                       allDailyEvents.push({ date: new Date(dateKey + 'T00:00:00Z'), description: style.agenda });
                   }
               });
-
-              const createSemesterTableData = (title) => {
-                  const isGanjil = title === "SEMESTER GANJIL";
-                  const semesterEvents = allDailyEvents.filter(event => {
-                      const month = event.date.getUTCMonth();
-                      const year = event.date.getUTCFullYear();
-                      return isGanjil ? (year === academicYearStart && month >= 6) : (year === academicYearStart + 1 && month < 6);
-                  });
-                  const uniqueEvents = Array.from(new Map(semesterEvents.map(e => [e.date.toISOString() + e.description, e])).values());
-                  uniqueEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
-                  if (uniqueEvents.length === 0) return { title, events: [] };
-                  const groupedEvents = [];
-                  let currentGroup = { start: uniqueEvents[0].date, end: uniqueEvents[0].date, description: uniqueEvents[0].description };
-                  for (let i = 1; i < uniqueEvents.length; i++) {
-                      const prevEvent = uniqueEvents[i - 1];
-                      const currentEvent = uniqueEvents[i];
-                      const isConsecutive = (currentEvent.date.getTime() - prevEvent.date.getTime()) === (24 * 60 * 60 * 1000);
-                      if (currentEvent.description === currentGroup.description && isConsecutive) {
-                          currentGroup.end = currentEvent.date;
-                      } else {
-                          groupedEvents.push({ date: formatDateRange(currentGroup.start, currentGroup.end), description: currentGroup.description });
-                          currentGroup = { start: currentEvent.date, end: currentEvent.date, description: currentEvent.description };
-                      }
-                  }
-                  groupedEvents.push({ date: formatDateRange(currentGroup.start, currentGroup.end), description: currentGroup.description });
-                  return { title, events: groupedEvents };
-              };
               
               const formatDateRange = (start, end) => {
                 const fullDateFormat = { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' };
@@ -669,6 +650,36 @@
                 return `${start.toLocaleDateString('id-ID', fullDateFormat)} - ${end.toLocaleDateString('id-ID', fullDateFormat)}`;
               };
 
+              const createSemesterTableData = (title) => {
+                  const isGanjil = title === "SEMESTER GANJIL";
+                  const semesterEvents = allDailyEvents.filter(event => {
+                      const month = event.date.getUTCMonth();
+                      const year = event.date.getUTCFullYear();
+                      return isGanjil ? (year === academicYearStart && month >= 6) : (year === academicYearStart + 1 && month < 6);
+                  });
+                  const uniqueEvents = Array.from(new Map(semesterEvents.map(e => [e.date.toISOString() + e.description, e])).values());
+                  uniqueEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+                  if (uniqueEvents.length === 0) return { title, events: [] };
+                  
+                  const groupedEvents = [];
+                  if (uniqueEvents.length > 0) {
+                      let currentGroup = { start: uniqueEvents[0].date, end: uniqueEvents[0].date, description: uniqueEvents[0].description };
+                      for (let i = 1; i < uniqueEvents.length; i++) {
+                          const prevEvent = uniqueEvents[i - 1];
+                          const currentEvent = uniqueEvents[i];
+                          const isConsecutive = (currentEvent.date.getTime() - prevEvent.date.getTime()) === (24 * 60 * 60 * 1000);
+                          if (currentEvent.description === currentGroup.description && isConsecutive) {
+                              currentGroup.end = currentEvent.date;
+                          } else {
+                              groupedEvents.push({ date: formatDateRange(currentGroup.start, currentGroup.end), description: currentGroup.description });
+                              currentGroup = { start: currentEvent.date, end: currentEvent.date, description: currentEvent.description };
+                          }
+                      }
+                      groupedEvents.push({ date: formatDateRange(currentGroup.start, currentGroup.end), description: currentGroup.description });
+                  }
+                  return { title, events: groupedEvents };
+              };
+
               return { ganjilData: createSemesterTableData("SEMESTER GANJIL"), genapData: createSemesterTableData("SEMESTER GENAP") };
           }, [customStyles, dateToMasterKeyMap, academicYearStart]);
 
@@ -681,85 +692,76 @@
           }, [selectedDate, customStyles, dateToMasterKeyMap]);
 
           const handleDateClick = useCallback((date) => { setSelectedDate(date); setIsDetailsModalOpen(true); }, []);
-          const handleOpenSettings = useCallback(() => { setPasswordModalConfig({ isOpen: true, purpose: 'settings' }); }, []);
+          const handleOpenSettings = useCallback(() => { setPasswordModalConfig({ isOpen: true, purpose: 'settings', error: undefined }); }, []);
           
           const handleAddOrEditEvent = useCallback(() => {
               const dateKey = selectedDate?.toISOString().split('T')[0];
               const masterKey = dateKey ? dateToMasterKeyMap[dateKey] : null;
-              setEditingEventKey(masterKey); // Set key for editing, null for adding
+              setEditingEventKey(masterKey);
               setIsDetailsModalOpen(false);
               handleOpenSettings();
           }, [selectedDate, dateToMasterKeyMap, handleOpenSettings]);
 
           const handleSaveStyle = useCallback(async (date, style) => {
-              const newDateKey = date.toISOString().split('T')[0];
-              const newStyles = { ...customStyles };
-
-              // If we were editing an existing event, and its date has changed, remove the old entry.
-              if (editingEventKey && editingEventKey !== newDateKey) {
-                  delete newStyles[editingEventKey];
-              }
-
-              // Add/update the style at the new date key.
-              newStyles[newDateKey] = style;
-              
-              setCustomStyles(newStyles);
-              setIsSettingsOpen(false);
-              setEditingEventKey(null); // Reset after saving
-              try {
-                  await updateCustomStyles(newStyles);
-              } catch (error) {
-                  console.error("Gagal menyimpan ke Google Sheets:", error);
-                  alert("Gagal menyimpan perubahan ke Google Sheets.");
-              }
+            const newDateKey = date.toISOString().split('T')[0];
+            const newStyles = { ...customStyles };
+            if (editingEventKey && editingEventKey !== newDateKey) {
+              delete newStyles[editingEventKey];
+            }
+            newStyles[newDateKey] = style;
+            setCustomStyles(newStyles);
+            setIsSettingsOpen(false);
+            setEditingEventKey(null);
+            try {
+              await updateEventsOnSheet(newStyles);
+            } catch (error) {
+              console.error("Gagal menyimpan ke Google Sheets:", error);
+              alert("Gagal menyimpan perubahan ke Google Sheets.");
+            }
           }, [customStyles, editingEventKey]);
 
           const handleDeleteStyle = useCallback(async (date) => {
-              const dateKey = date.toISOString().split('T')[0];
-              const masterKey = dateToMasterKeyMap[dateKey];
-              if (!masterKey) return;
-              const newStyles = { ...customStyles };
-              delete newStyles[masterKey];
-              setCustomStyles(newStyles);
-              setIsDetailsModalOpen(false);
-              try { await updateCustomStyles(newStyles); } catch (error) {
-                  console.error("Gagal menyimpan ke Google Sheets:", error);
-                  alert("Gagal menyimpan perubahan ke Google Sheets.");
-              }
+            const dateKey = date.toISOString().split('T')[0];
+            const masterKey = dateToMasterKeyMap[dateKey];
+            if (!masterKey) return;
+            const newStyles = { ...customStyles };
+            delete newStyles[masterKey];
+            setCustomStyles(newStyles);
+            setIsDetailsModalOpen(false);
+            try { await updateEventsOnSheet(newStyles); } catch (error) {
+              console.error("Gagal menyimpan ke Google Sheets:", error);
+              alert("Gagal menyimpan perubahan ke Google Sheets.");
+            }
           }, [customStyles, dateToMasterKeyMap]);
 
           const handleDeleteRequest = useCallback((date) => { setDateToDelete(date); setIsDetailsModalOpen(false); setIsConfirmationOpen(true); }, []);
-          const handleConfirmDelete = useCallback(() => { setIsConfirmationOpen(false); setPasswordModalConfig({ isOpen: true, purpose: 'delete' }); }, []);
+          const handleConfirmDelete = useCallback(() => { setIsConfirmationOpen(false); setPasswordModalConfig({ isOpen: true, purpose: 'delete', error: undefined }); }, []);
           
           const handleResetCalendar = useCallback(async () => {
-              try {
-                await updateCustomStyles({});
-                setCustomStyles({});
-                setIsSettingsOpen(false);
-              } catch (error) {
-                console.error("Gagal mereset kalender:", error);
-                alert("Gagal mereset kalender. Silakan coba lagi.");
-              }
+            try {
+              await updateEventsOnSheet({});
+              setCustomStyles({});
+              setIsSettingsOpen(false);
+            } catch (error) {
+              console.error("Gagal mereset kalender:", error);
+              alert("Gagal mereset kalender. Silakan coba lagi.");
+            }
           }, []);
 
           const handlePasswordSubmit = useCallback((password) => {
-              if (password !== 'admin') {
-                  setPasswordModalConfig(prev => ({ ...prev, error: 'Password salah' }));
-                  return;
-              }
-              const purpose = passwordModalConfig.purpose;
-              setPasswordModalConfig({ isOpen: false, purpose: null }); // Tutup modal dulu
-              if (purpose === 'settings') setIsSettingsOpen(true);
-              else if (purpose === 'delete' && dateToDelete) handleDeleteStyle(dateToDelete);
-              else if (purpose === 'reset') {
-                handleResetCalendar();
-              }
-              setDateToDelete(null);
+            if (password !== 'admin') {
+              setPasswordModalConfig(prev => ({ ...prev, error: 'Password salah' }));
+              return;
+            }
+            const purpose = passwordModalConfig.purpose;
+            setPasswordModalConfig({ isOpen: false, purpose: null, error: undefined });
+            if (purpose === 'settings') setIsSettingsOpen(true);
+            else if (purpose === 'delete' && dateToDelete) handleDeleteStyle(dateToDelete);
+            else if (purpose === 'reset') handleResetCalendar();
+            setDateToDelete(null);
           }, [passwordModalConfig.purpose, dateToDelete, handleDeleteStyle, handleResetCalendar]);
 
-          const handleResetCalendarRequest = useCallback(() => {
-              setPasswordModalConfig({ isOpen: true, purpose: 'reset' });
-          }, []);
+          const handleResetCalendarRequest = useCallback(() => { setPasswordModalConfig({ isOpen: true, purpose: 'reset', error: undefined }); }, []);
 
           const selectedDateKey = selectedDate?.toISOString().split('T')[0];
           const masterKeyForSelectedDate = selectedDateKey ? dateToMasterKeyMap[selectedDateKey] : undefined;
@@ -773,10 +775,7 @@
           return (
               <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
                   <div id="calendar-container" className="max-w-7xl mx-auto">
-                      <Header
-                        onSettingsClick={handleOpenSettings}
-                        academicYearStart={academicYearStart}
-                      />
+                      <Header onSettingsClick={handleOpenSettings} academicYearStart={academicYearStart} />
                       <main className="mt-6">
                           <CalendarGrid onDateClick={handleDateClick} customStyles={customStyles} academicYearStart={academicYearStart} dateToMasterKeyMap={dateToMasterKeyMap} />
                           <EventTables ganjilData={ganjilData} genapData={genapData} />
@@ -786,7 +785,7 @@
                   {isDetailsModalOpen && selectedDate && <EventDetailsModal date={selectedDate} events={eventsOnSelectedDate} onClose={() => setIsDetailsModalOpen(false)} onAdd={handleAddOrEditEvent} onDelete={currentStyleForPanel ? () => handleDeleteRequest(selectedDate) : undefined} />}
                   {isSettingsOpen && <SettingsPanel selectedDate={canonicalDateForPanel} onClose={() => { setIsSettingsOpen(false); setEditingEventKey(null); }} onSave={handleSaveStyle} currentStyle={currentStyleForPanel} onDateChange={setSelectedDate} onResetCalendar={handleResetCalendarRequest} />}
                   {isConfirmationOpen && <ConfirmationModal message="Apakah Anda yakin ingin menghapus agenda ini?" onConfirm={handleConfirmDelete} onCancel={() => setIsConfirmationOpen(false)} />}
-                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : passwordModalConfig.purpose === 'delete' ? 'Konfirmasi Hapus' : 'Konfirmasi Hapus Semua Agenda'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null })} error={passwordModalConfig.error} />}
+                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : passwordModalConfig.purpose === 'delete' ? 'Konfirmasi Hapus' : 'Konfirmasi Hapus Semua Agenda'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null, error: undefined })} error={passwordModalConfig.error} />}
               </div>
           );
       };
