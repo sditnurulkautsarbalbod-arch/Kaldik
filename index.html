@@ -10,16 +10,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <!-- Babel Standalone for JSX compilation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/"
-  }
-}
-</script>
-</head>
+  </head>
   <body class="bg-gray-100">
     <div id="root"></div>
 
@@ -139,14 +130,14 @@
       
       // --- From components/MonthView.tsx ---
       const MonthView = ({ monthDate, onDateClick, customStyles, dateToMasterKeyMap }) => {
-        const year = monthDate.getFullYear();
-        const month = monthDate.getMonth();
+        const year = monthDate.getUTCFullYear();
+        const month = monthDate.getUTCMonth();
         const monthNameIndex = month >= 6 ? month - 6 : month + 6;
         const monthName = MONTH_NAMES[monthNameIndex];
 
         const calendarDays = useMemo(() => {
-          const daysInMonth = new Date(year, month + 1, 0).getDate();
-          const firstDayOfMonth = new Date(year, month, 1).getDay();
+          const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+          const firstDayOfMonth = new Date(Date.UTC(year, month, 1)).getUTCDay();
           const totalCells = 42;
           const daysArray = [];
           for (let i = 0; i < firstDayOfMonth; i++) { daysArray.push(null); }
@@ -217,7 +208,7 @@
         const months = Array.from({ length: 12 }, (_, i) => {
           const monthIndex = (i + 6) % 12;
           const year = academicYearStart + Math.floor((i + 6) / 12);
-          return new Date(year, monthIndex, 1);
+          return new Date(Date.UTC(year, monthIndex, 1));
         });
 
         return (
@@ -334,7 +325,10 @@
           const [textColor, setTextColor] = useState(colorPresets[0].text);
           const [recurrenceType, setRecurrenceType] = useState('none');
           const [recurrenceUntil, setRecurrenceUntil] = useState('');
-          const [pickerDate, setPickerDate] = useState(selectedDate || new Date());
+          const [pickerDate, setPickerDate] = useState(() => {
+            const dateToUse = selectedDate || new Date();
+            return new Date(Date.UTC(dateToUse.getUTCFullYear(), dateToUse.getUTCMonth(), 1));
+          });
           const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
 
           useEffect(() => {
@@ -417,7 +411,7 @@
                                             const dayDate = new Date(Date.UTC(pickerDate.getUTCFullYear(), pickerDate.getUTCMonth(), day));
                                             const isSelected = selectedDate && dayDate.getTime() === selectedDate.getTime();
                                             const now = new Date();
-                                            const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+                                            const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
                                             const isToday = dayDate.getTime() === todayUTC.getTime();
                                             return <div key={day} className="flex justify-center items-center">
                                                 <button onClick={() => onDateChange(dayDate)} className={`h-8 w-8 rounded-full text-sm flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : ''} ${!isSelected && isToday ? 'bg-blue-100 text-blue-700' : ''} ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}`}>{day}</button>
@@ -548,7 +542,7 @@
           
           const academicYearStart = useMemo(() => {
               const now = new Date();
-              return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+              return now.getUTCMonth() >= 6 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
           }, []);
 
           useEffect(() => {
@@ -611,7 +605,7 @@
 
           useEffect(() => {
               const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
+              tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
               const tomorrowStr = tomorrow.toISOString().split('T')[0];
               const masterKey = dateToMasterKeyMap[tomorrowStr];
               if(masterKey && customStyles[masterKey]?.agenda){
