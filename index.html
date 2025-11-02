@@ -108,16 +108,18 @@
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">SD IT NURUL KAUTSAR</h1>
                 <h2 className="text-lg sm:text-xl text-gray-600">{`KALENDER PENDIDIKAN TAHUN PELAJARAN ${academicYearStart}/${academicYearStart + 1}`}</h2>
               </div>
-              <button
-                onClick={onSettingsClick}
-                className="p-2 rounded-full hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                aria-label="Pengaturan"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onSettingsClick}
+                  className="p-2 rounded-full hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  aria-label="Pengaturan"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </header>
         );
@@ -281,8 +283,14 @@
               </div>
               <div className="p-4 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
                 <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Tutup</button>
-                {onDelete && (<button onClick={onDelete} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">Hapus</button>)}
-                <button onClick={onAdd} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Tambah</button>
+                {events.length > 0 ? (
+                    <>
+                        {onDelete && (<button onClick={onDelete} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">Hapus</button>)}
+                        <button onClick={onAdd} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Edit</button>
+                    </>
+                ) : (
+                    <button onClick={onAdd} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Tambah</button>
+                )}
               </div>
             </div>
           </div>
@@ -420,12 +428,12 @@
                             )}
                             <div className="border-t pt-4">
                                 <h4 className="text-md font-semibold text-gray-800">Tindakan Lanjutan</h4>
-                                <p className="text-xs text-gray-500 mt-1 mb-2">Gunakan ini untuk memperbaiki data yang salah di Google Sheet.</p>
+                                <p className="text-xs text-gray-500 mt-1 mb-2">Gunakan ini untuk menghapus semua data di Google Sheet.</p>
                                 <button
                                     onClick={() => setIsResetConfirmationOpen(true)}
-                                    className="w-full text-sm px-4 py-2 bg-yellow-500 text-black rounded-md hover:bg-yellow-600 transition"
+                                    className="w-full text-sm px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
                                 >
-                                    Reset Kalender ke Standar
+                                    Hapus Semua Agenda
                                 </button>
                             </div>
                         </div>
@@ -439,7 +447,7 @@
                 </div>
                 {isResetConfirmationOpen && (
                   <ConfirmationModal 
-                    message="Apakah Anda yakin ingin mereset seluruh kalender? Semua agenda kustom akan dihapus dan diganti dengan data standar."
+                    message="Apakah Anda yakin ingin menghapus seluruh agenda? Tindakan ini tidak dapat diurungkan."
                     onConfirm={handleResetConfirm}
                     onCancel={() => setIsResetConfirmationOpen(false)}
                   />
@@ -513,27 +521,6 @@
         );
       };
 
-      // --- From components/SetupModal.tsx ---
-      const SetupModal = ({ onInitialize, isInitializing }) => (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="setup-title">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md text-center p-8">
-            <h2 id="setup-title" className="text-2xl font-bold text-gray-800">Selamat Datang!</h2>
-            <p className="mt-4 text-gray-600">Kalender sekolah Anda belum diinisialisasi. Untuk memulai, Anda dapat mengisi kalender dengan data acara sekolah standar untuk tahun ajaran ini.</p>
-            <p className="mt-2 text-sm text-gray-500">Tindakan ini akan mengirim data ke Google Sheet Anda. Anda dapat mengubah atau menambah acara nanti melalui panel pengaturan.</p>
-            <div className="mt-8">
-              <button onClick={onInitialize} disabled={isInitializing} className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
-                {isInitializing ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Menginisialisasi...
-                  </>
-                ) : ('Inisialisasi Kalender Sekolah')}
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-
       // --- From App.tsx ---
       const App = () => {
           const [customStyles, setCustomStyles] = useState({});
@@ -542,11 +529,10 @@
           const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
           const [selectedDate, setSelectedDate] = useState(null);
           const [startupNotifications, setStartupNotifications] = useState([]);
-          const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
-          const [isInitializing, setIsInitializing] = useState(false);
           const [passwordModalConfig, setPasswordModalConfig] = useState({ isOpen: false, purpose: null, error: undefined });
           const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
           const [dateToDelete, setDateToDelete] = useState(null);
+          const [editingEventKey, setEditingEventKey] = useState(null);
           
           const academicYearStart = useMemo(() => {
               const now = new Date();
@@ -581,9 +567,6 @@
                     });
                 }
                 setCustomStyles(stylesObject);
-                if (Object.keys(stylesObject).length === 0 && Array.isArray(eventsArray)) {
-                    setIsSetupModalOpen(true);
-                }
               } catch (error) {
                 console.error("Gagal memuat data dari Google Sheets:", error);
                 alert("Gagal memuat data dari Google Sheets. Pastikan konfigurasi di env.ts sudah benar dan Spreadsheet sudah dibagikan.");
@@ -699,20 +682,37 @@
 
           const handleDateClick = useCallback((date) => { setSelectedDate(date); setIsDetailsModalOpen(true); }, []);
           const handleOpenSettings = useCallback(() => { setPasswordModalConfig({ isOpen: true, purpose: 'settings' }); }, []);
-          const handleAddOrEditEvent = useCallback(() => { setIsDetailsModalOpen(false); handleOpenSettings(); }, [handleOpenSettings]);
+          
+          const handleAddOrEditEvent = useCallback(() => {
+              const dateKey = selectedDate?.toISOString().split('T')[0];
+              const masterKey = dateKey ? dateToMasterKeyMap[dateKey] : null;
+              setEditingEventKey(masterKey); // Set key for editing, null for adding
+              setIsDetailsModalOpen(false);
+              handleOpenSettings();
+          }, [selectedDate, dateToMasterKeyMap, handleOpenSettings]);
 
           const handleSaveStyle = useCallback(async (date, style) => {
-              const dateKey = date.toISOString().split('T')[0];
-              const newStyles = { ...customStyles, [dateKey]: style };
-              const masterKeyForSelectedDate = dateToMasterKeyMap[dateKey];
-              if (masterKeyForSelectedDate && masterKeyForSelectedDate !== dateKey) delete newStyles[masterKeyForSelectedDate];
+              const newDateKey = date.toISOString().split('T')[0];
+              const newStyles = { ...customStyles };
+
+              // If we were editing an existing event, and its date has changed, remove the old entry.
+              if (editingEventKey && editingEventKey !== newDateKey) {
+                  delete newStyles[editingEventKey];
+              }
+
+              // Add/update the style at the new date key.
+              newStyles[newDateKey] = style;
+              
               setCustomStyles(newStyles);
               setIsSettingsOpen(false);
-              try { await updateCustomStyles(newStyles); } catch (error) {
+              setEditingEventKey(null); // Reset after saving
+              try {
+                  await updateCustomStyles(newStyles);
+              } catch (error) {
                   console.error("Gagal menyimpan ke Google Sheets:", error);
                   alert("Gagal menyimpan perubahan ke Google Sheets.");
               }
-          }, [customStyles, dateToMasterKeyMap]);
+          }, [customStyles, editingEventKey]);
 
           const handleDeleteStyle = useCallback(async (date) => {
               const dateKey = date.toISOString().split('T')[0];
@@ -730,6 +730,17 @@
 
           const handleDeleteRequest = useCallback((date) => { setDateToDelete(date); setIsDetailsModalOpen(false); setIsConfirmationOpen(true); }, []);
           const handleConfirmDelete = useCallback(() => { setIsConfirmationOpen(false); setPasswordModalConfig({ isOpen: true, purpose: 'delete' }); }, []);
+          
+          const handleResetCalendar = useCallback(async () => {
+              try {
+                await updateCustomStyles({});
+                setCustomStyles({});
+                setIsSettingsOpen(false);
+              } catch (error) {
+                console.error("Gagal mereset kalender:", error);
+                alert("Gagal mereset kalender. Silakan coba lagi.");
+              }
+          }, []);
 
           const handlePasswordSubmit = useCallback((password) => {
               if (password !== 'admin') {
@@ -741,129 +752,14 @@
               if (purpose === 'settings') setIsSettingsOpen(true);
               else if (purpose === 'delete' && dateToDelete) handleDeleteStyle(dateToDelete);
               else if (purpose === 'reset') {
-                handleInitializeCalendar(true); // Kirim flag untuk reset
+                handleResetCalendar();
               }
               setDateToDelete(null);
-          }, [passwordModalConfig.purpose, dateToDelete, handleDeleteStyle]);
+          }, [passwordModalConfig.purpose, dateToDelete, handleDeleteStyle, handleResetCalendar]);
 
           const handleResetCalendarRequest = useCallback(() => {
               setPasswordModalConfig({ isOpen: true, purpose: 'reset' });
           }, []);
-          
-          const handleInitializeCalendar = useCallback(async (isReset = false) => {
-              if (!isReset) {
-                setIsInitializing(true);
-              }
-              
-              const INDONESIAN_MONTH_MAP = {'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'mei': 4, 'jun': 5, 'jul': 6, 'agu': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'des': 11 };
-              const parseIndonesianDate = (dateStr, defaultYear, defaultMonth) => {
-                  const parts = dateStr.trim().toLowerCase().split(' ').filter(p => p);
-                  if (parts.length === 0) return null;
-                  let day = parseInt(parts[0], 10);
-                  if (isNaN(day)) return null;
-                  let month, year;
-                  for (const part of parts) {
-                      if (Object.keys(INDONESIAN_MONTH_MAP).some(m => part.startsWith(m))) {
-                          const monthKey = Object.keys(INDONESIAN_MONTH_MAP).find(m => part.startsWith(m));
-                          month = INDONESIAN_MONTH_MAP[monthKey];
-                      }
-                      const potentialYear = parseInt(part, 10);
-                      if (!isNaN(potentialYear) && potentialYear > 2000) year = potentialYear;
-                  }
-                  month = month ?? defaultMonth;
-                  year = year ?? defaultYear;
-                  if (day === undefined || month === undefined || year === undefined) return null;
-                  return new Date(Date.UTC(year, month, day));
-              };
-              const expandDateRange = (dateStr) => {
-                  const dates = [];
-                  const parts = dateStr.split('-').map(p => p.trim());
-                  const endDate = parseIndonesianDate(parts[parts.length - 1]);
-                  if (!endDate) return [];
-                  const startDate = parts.length > 1 ? parseIndonesianDate(parts[0], endDate.getUTCFullYear(), endDate.getUTCMonth()) : endDate;
-                  if (!startDate) return [];
-                  let currentDate = new Date(startDate);
-                  while (currentDate <= endDate) {
-                      dates.push(new Date(currentDate));
-                      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-                  }
-                  return dates;
-              };
-
-              const staticGanjilData = (startYear) => ({
-                  events: [
-                    { date: `14-16 Juli ${startYear}`, description: `Awal PBM TP ${startYear}-${startYear + 1}/MPLS Peserta Didik Baru` },
-                    { date: `17 Juli ${startYear}`, description: `Efektif Belajar TP ${startYear}-${startYear + 1}` },
-                    { date: `17 - 18 Agustus ${startYear}`, description: "Proklamasi Kemerdekaan RI dan Cuti Bersama" },
-                    { date: `05 September ${startYear}`, description: "Maulid" },
-                    { date: `18 - 26 September ${startYear}`, description: "Sumatif Tengah Semester I (STS 1)" },
-                    { date: `02 - 15 Oktober ${startYear}`, description: "Libur Tengah Semester" },
-                    { date: `04 - 12 Desember ${startYear}`, description: "Sumatif Akhir Semester I (SAS 1)" },
-                    { date: `15 - 19 Desember ${startYear}`, description: "Pekan Olahraga dan Seni (PORSENI)" },
-                    { date: `25 Desember ${startYear}`, description: "Natal" },
-                    { date: `27 Desember ${startYear}`, description: "Pembagian Rapor SAS 1" },
-                    { date: `29 Des ${startYear} - 02 Jan ${startYear + 1}`, description: "Libur Semester Ganjil" },
-                  ]
-              });
-              const staticGenapData = (startYear) => ({
-                  events: [
-                    { date: `5 Januari ${startYear + 1}`, description: "Belajar Efektif Semester Genap" },
-                    { date: `16 Januari ${startYear + 1}`, description: "Isra Mi'raj" },
-                    { date: `17 Februari ${startYear + 1}`, description: "Imlek" },
-                    { date: `19 - 20 Februari ${startYear + 1}`, description: "Perkiraan Libur Awal Ramadhan" },
-                    { date: `26 Feb - 06 Mar ${startYear + 1}`, description: "Sumatif Tengah Semester II (STS 2)" },
-                    { date: `09 - 10 Mar ${startYear + 1}`, description: "Perkiraan Buka Puasa Bersama" },
-                    { date: `19 Maret ${startYear + 1}`, description: "Nyepi" },
-                    { date: `20 Maret ${startYear + 1}`, description: "Perkiraan Idulfitri" },
-                    { date: `23 - 27 Maret ${startYear + 1}`, description: "Libur dan Cuti Bersama Idul Fitri 1447 H" },
-                    { date: `30 Maret ${startYear + 1}`, description: "Masuk Sekolah" },
-                    { date: `03 April ${startYear + 1}`, description: "Wafat Yesus Kristus" },
-                    { date: `01 Mei ${startYear + 1}`, description: "Hari Buruh" },
-                    { date: `04 - 12 Mei ${startYear + 1}`, description: "Ujian Akhir Sekolah Kelas 6 SD" },
-                    { date: `14 Mei ${startYear + 1}`, description: "Kenaikan Yesus Kristus" },
-                    { date: `27 Mei ${startYear + 1}`, description: "Perkiraan Hari Raya Idul Adha" },
-                    { date: `01 Juni ${startYear + 1}`, description: "Hari Lahir Pancasila" },
-                    { date: `04 - 12 Juni ${startYear + 1}`, description: "Sumatif Akhir Semester II (SAS 2)" },
-                    { date: `20 Juni ${startYear + 1}`, description: "Pembagian Raport kenaikan Kelas" },
-                    { date: `22 Juni - 10 Juli ${startYear + 1}`, description: "Libur Semester Genap" },
-                  ]
-              });
-              const getColorForDescription = (desc) => {
-                  const d = desc.toLowerCase();
-                  if (['libur', 'cuti', 'hari raya', 'natal', 'imlek', 'nyepi', 'idul fitri', 'idul adha', 'wafat', 'pancasila', 'proklamasi', 'maulid', "isra mi'raj"].some(k => d.includes(k))) return COLOR_PRESETS.red;
-                  if (['porseni', 'tengah semester'].some(k => d.includes(k))) return COLOR_PRESETS.yellow;
-                  return COLOR_PRESETS.green;
-              };
-              const newStyles = {};
-              const allStaticEvents = [...staticGanjilData(academicYearStart).events, ...staticGenapData(academicYearStart).events];
-              for (const event of allStaticEvents) {
-                  const dates = expandDateRange(event.date);
-                  if (dates.length > 0) {
-                      const startDate = dates[0];
-                      const endDate = dates[dates.length - 1];
-                      const dateKey = startDate.toISOString().split('T')[0];
-                      const color = getColorForDescription(event.description);
-                      const style = { agenda: event.description, backgroundColor: color.bg, textColor: color.text };
-                      if (startDate.getTime() !== endDate.getTime()) {
-                          style.recurrence = { type: 'daily', until: endDate.toISOString().split('T')[0] };
-                      }
-                      newStyles[dateKey] = style;
-                  }
-              }
-              try {
-                  await updateCustomStyles(newStyles);
-                  setCustomStyles(newStyles);
-                  if (isReset) setIsSettingsOpen(false);
-                  setIsSetupModalOpen(false);
-              } catch (error) {
-                  console.error("Gagal menginisialisasi kalender:", error);
-                  alert("Gagal menginisialisasi kalender. Silakan coba lagi.");
-              } finally {
-                  if (!isReset) {
-                    setIsInitializing(false);
-                  }
-              }
-          }, [academicYearStart]);
 
           const selectedDateKey = selectedDate?.toISOString().split('T')[0];
           const masterKeyForSelectedDate = selectedDateKey ? dateToMasterKeyMap[selectedDateKey] : undefined;
@@ -876,19 +772,21 @@
 
           return (
               <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-                  <div className="max-w-7xl mx-auto">
-                      <Header onSettingsClick={handleOpenSettings} academicYearStart={academicYearStart} />
+                  <div id="calendar-container" className="max-w-7xl mx-auto">
+                      <Header
+                        onSettingsClick={handleOpenSettings}
+                        academicYearStart={academicYearStart}
+                      />
                       <main className="mt-6">
                           <CalendarGrid onDateClick={handleDateClick} customStyles={customStyles} academicYearStart={academicYearStart} dateToMasterKeyMap={dateToMasterKeyMap} />
                           <EventTables ganjilData={ganjilData} genapData={genapData} />
                       </main>
                   </div>
-                  {isSetupModalOpen && <SetupModal onInitialize={handleInitializeCalendar} isInitializing={isInitializing} />}
                   {startupNotifications.length > 0 && <StartupNotificationModal events={startupNotifications} onClose={() => setStartupNotifications([])} />}
                   {isDetailsModalOpen && selectedDate && <EventDetailsModal date={selectedDate} events={eventsOnSelectedDate} onClose={() => setIsDetailsModalOpen(false)} onAdd={handleAddOrEditEvent} onDelete={currentStyleForPanel ? () => handleDeleteRequest(selectedDate) : undefined} />}
-                  {isSettingsOpen && <SettingsPanel selectedDate={canonicalDateForPanel} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveStyle} currentStyle={currentStyleForPanel} onDateChange={setSelectedDate} onResetCalendar={handleResetCalendarRequest} />}
+                  {isSettingsOpen && <SettingsPanel selectedDate={canonicalDateForPanel} onClose={() => { setIsSettingsOpen(false); setEditingEventKey(null); }} onSave={handleSaveStyle} currentStyle={currentStyleForPanel} onDateChange={setSelectedDate} onResetCalendar={handleResetCalendarRequest} />}
                   {isConfirmationOpen && <ConfirmationModal message="Apakah Anda yakin ingin menghapus agenda ini?" onConfirm={handleConfirmDelete} onCancel={() => setIsConfirmationOpen(false)} />}
-                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : passwordModalConfig.purpose === 'delete' ? 'Konfirmasi Hapus' : 'Konfirmasi Reset'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null })} error={passwordModalConfig.error} />}
+                  {passwordModalConfig.isOpen && <PasswordModal title={passwordModalConfig.purpose === 'settings' ? 'Akses Pengaturan' : passwordModalConfig.purpose === 'delete' ? 'Konfirmasi Hapus' : 'Konfirmasi Hapus Semua Agenda'} onSubmit={handlePasswordSubmit} onClose={() => setPasswordModalConfig({ isOpen: false, purpose: null })} error={passwordModalConfig.error} />}
               </div>
           );
       };
